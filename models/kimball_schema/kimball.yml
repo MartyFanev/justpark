@@ -1,0 +1,51 @@
+version: 2
+
+models:
+  - name: DIM_AVALIABLE_DATES
+    description: A dimension table that maps rule_id's onto avaliable days that the rule is active
+    columns: 
+      - name: rule_id
+        description: Primary key for the set of rules defining price logic
+      - name: days
+        description: Days avaliable [1 is Monday, 2 Tuesday.. etc]
+
+  - name: FACT_PRICE
+    description: 
+      This model provides a view of the pricing information with an added flag (`CURRENT_FLAG`) that indicates whether the pricing record for the parking is currently active or not.
+      The `CURRENT_FLAG` is set to 'Y' if the record is found in the `base_pricing__prices` table without a `deleted_at` timestamp. Otherwise, the flag is set to 'N'.
+    columns:
+      - name: price_id
+        description: The unique identifier for the pricing record.
+
+      - name: location_id
+        description: The identifier for the location associated with the parking space.
+
+      - name: pricing_mode
+        description: 
+        The mode of pricing; MANUAL, AUTOMATIC, etc.
+
+      - name: created_at
+        description: The timestamp when the pricing record was created.
+
+      - name: deleted_at
+        description: The timestamp when the pricing record was marked as deleted.
+
+      - name: rule_id
+        description: >
+          The identifier for the pricing rule associated with this pricing record.
+
+      - name: CURRENT_FLAG
+        description: >
+          A flag indicating if the pricing record is currently active. Set to 'Y' if the record is present in the `base_pricing__prices` table without a `deleted_at` timestamp; otherwise, 'N'.
+    
+  - name: FACT_PRICING_RULE
+    description: This simple model provides details about pricing tariffs. 
+    columns:
+      - name: rule_id
+        description: Primary key for the set of rules defining price logic
+        tests:
+          - not_null
+      - name: price
+        description: the price of parking for a particular duration
+      - name: duration
+        description: the duration of parking in hours
