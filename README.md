@@ -1,70 +1,44 @@
-# analytics_engineer_exercise
+## Introduction
 
-This is a technical task for mid-level analytics engineers.
+Hello, my name is Martin, and I've completed the exercise to what I believe is a good standard. I will walk you through each model and how it works. I will then provide the advantages and disadvantages of this approach and explain why I chose it. Later on, I will give you feedback on how I found this exercise, which may help you improve in the future.
 
-The aim is to build some DBT models that fulfil certain objectives.
+## The Models
 
-First let us define some terms:
+### Base
 
-- a parking location is a parking spot or car park where JustPark offers parking
-- a parking session is when a parking spot is used for a particular duration, starting at some specific time/date
-- a price is a set of rules you can use to calculate the cost of a parking session
-- a tariff is member of the set of rules (e.g. 'if parking on a Saturday for 2 hours starting after 4pm, the hourly cost is £4.00')
+The DBT project is split into four parts. The base part is the initial ingestion stage; it simply ingests the raw data as it is. We have two models that correspond to the prices and the rules.
 
-**The objectives of the exercise are to build DBT models (e.g. in a star schema) that:**
+### Intermediate
 
-1. allow us to easily look up the _current_ price that would be charged on different days of the week for parking sessions of various durations, at a specific location
-2. allow us to easily look up how the price for a one hour parking session at a specific location has changed over time
+The intermediate models apply preparatory data transformations to the base models. The only transformation done here is a JSON flattening of the tariff data.
 
-It's important that these models be well-documented.
+### Kimball Schema
 
-## Getting started
+The Kimball schema is where we have our models. This schema employs the use of two FACT tables: one for the pricing and one for the rules. It also uses one DIM table to store the days that a rule is active. This approach makes querying by active days easier.
 
-We are using two key technologies here:
+You will notice that there isn't another DIM table apart from this. The reason for this is that I aimed to keep the coding as impactful as possible. Redundant information that was not necessary for the final product was excluded from the model. Additionally, there isn't any further nested information for attributes of the price and rule tables, with the exception of active days and applied-between dates.
 
-- DuckDB (a hyper-flexible column-store database) can be used as a kind of 'local data warehouse'
-- DBT is a popular data transformation tool for data warehousing purposes
+The `DIM_AVAILABLE_DATES` table was created to simplify querying and to further normalize the model (at least to 1NF). This approach has the drawback of creating a large table, as each rule ID has certain dates on which it operates. This can be improved by understanding the business logic further (e.g., using weekends or weekdays as days instead of numbers) and possibly including days when a rule is NOT applied.
 
-For this project we're managing everything via `poetry`. You can install it [using these instructions](https://python-poetry.org/docs/#installing-with-the-official-installer). You also need to have Python installed on your system. If you run `poetry install` you will end up with `duckdb` and `dbt` installed in a local virtual environment.
+`FACT_PRICE` is the fact table for the price data. The most recent addition is a flag indicating whether a `price_id` is the currently used one. This allows for tracking both historical and current records with a simple CASE statement.
 
-> This isn't strictly necessary if you already have the Python modules `dbt-core`, `dbt-duckdb`, and `duckdb` installed on your system. It's arranged for convenience.
+`FACT_PRICING_RULE` is essentially a copy of the intermediate table for the tariff data but includes only the essential information.
 
-You can then run DBT commands prefixed with `poetry run` (to run them inside the virtual environment), e.g. `poetry run dbt run`. **We recommend trying this first**, to ensure everything works as it should.
+## Products
 
-## What to do
+In this section, I show how you can use the model.
 
-There is an example dataset in the warehouse file `pricing.duckdb`. It contains
+The current pricing information is obtained through two inner joins: from `FACT_PRICE` to `FACT_PRICING_RULE` and then to `DIM_AVAILABLE_DATES` to get the necessary information. You can filter by location ID and active days of the rule, and the currently used pricing can be identified by setting the `CURRENT_FLAG` to 'Y'.
 
-- two source tables `main.prices` and `main.rules`
-- two example, incomplete DBT models `main_base.base_pricing__rules` and `main_intm.intm_pricing__tariffs`
+The time series price query involves filtering the `FACT_PRICE` table so that the duration of the stay is 1 hour. This simple query allows us to analyze the entire history, order by the `created_at` date, and perform some interesting time series analysis.
 
-The two source tables are analogous to real tables in the JustPark database, albeit simplified and much smaller. Additional details may be found in `models/_sources/_sources.yml`, but in brief:
+## Feedback
 
-- `prices` represents the history of which pricing logic applied at particular times in the past
-- `rules` contains the actual pricing rules, in a nested JSON structure
+In the README, there was an example of how to read data in DuckDB. However, that method requires `pandas` and `numpy`, which were not included in the lock file.
 
-The example DBT models are defined in `models/base/base_pricing__rules.sql` and `models/intm/intm_pricing__tariffs.sql`. These are there mostly to demonstrate some DuckDB syntax for working with JSON data (since candidates are not expected to be familiar with this - [here is a reference](https://duckdb.org/docs/extensions/json.html#json-extraction-functions) in case needed).
+Overall, it was a very nice and enjoyable exercise. Some data did not make much sense (e.g., a duration of 60 hours, or 164 hours for only 30 bucks, is criminal) but it was funny to see.
 
-(there is also `pricing_original.duckdb`, this is the original warehouse file _before_ the example DBT models have been run; it's there in case you get into difficulty and need a fresh start)
+This took about 1 hour. Most of the time was spent understanding the data and writing the documentation.
 
-**Take some time to explore the project and the source tables before beginning.** There are many ways to read `duckdb` files. One way is to use Python to read the table into a DataFrame:
+I also wanted to express my personal thanks and apologies for the delay and the extension of the deadline.
 
-```
-import duckdb
-
-conn = duckdb.connect("./pricing.duckdb")
-prices = conn.execute("SELECT * FROM prices;).fetchdf()
-conn.close()
-```
-
-... however there are many other options.
-
-How you choose to structure your solution is completely up to you. What we're looking for is
-
-- a working project (i.e. `dbt run` will successfully build the models)
-- a well-documented project (i.e. a colleague could maintain and extend the work without difficulty)
-- a project that fulfils the two objectives stated at the beginning
-
-We estimate that this will take 1-2 hours, to be done at the candidate's convenience. It's okay if you take longer, just tell us how long you took when you submit your solution.
-
-Feel free to ask clarifying questions about this exercise. You can email these to `padraig.alton@justpark.com`.
